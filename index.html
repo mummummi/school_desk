@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>학급 자리배치표 - 맞춤형 교실 자리 관리자</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts (Gothic A1 / Noto Sans KR / Gaegu for cute vibe) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Noto Sans KR', 'sans-serif'],
+            cute: ['Gaegu', 'cursive'],
+          },
+          colors: {
+            pastel: {
+              bg: '#fbf8f3',
+              card: '#ffffff',
+              primary: '#6366f1',
+              pink: '#ffedd5',
+              mint: '#d1fae5',
+              yellow: '#fef3c7',
+              sky: '#e0f2fe',
+              purple: '#f3e8ff',
+              wood: '#854d0e',
+              chalkboard: '#2d5a3f',
+            }
+          },
+          boxShadow: {
+            'cute': '0 6px 0 0 rgba(0, 0, 0, 0.06), 0 10px 15px -3px rgba(0, 0, 0, 0.05)',
+            'cute-hover': '0 8px 0 0 rgba(0, 0, 0, 0.08), 0 12px 20px -3px rgba(0, 0, 0, 0.08)',
+            'cute-pressed': '0 2px 0 0 rgba(0, 0, 0, 0.08)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background-color: #fbf7f0;
+      background-image: radial-gradient(#e5e7eb 1.2px, transparent 1.2px);
+      background-size: 20px 20px;
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+
+    .font-cute {
+      font-family: 'Gaegu', cursive;
+    }
+
+    /* Desk Cards Styles */
+    .desk-card {
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s, border-color 0.2s, background-color 0.2s;
+      user-select: none;
+      touch-action: none;
+    }
+    
+    .desk-card:hover {
+      transform: translateY(-4px) scale(1.02);
+    }
+
+    /* Keep absolute positioning for circle layout transform */
+    .circle-card {
+      transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s !important;
+    }
+
+    .desk-selected {
+      border-color: #6366f1 !important;
+      background-color: #eef2ff !important;
+      transform: scale(1.06) !important;
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3) !important;
+      z-index: 20;
+    }
+
+    .desk-dragging {
+      opacity: 0.4 !important;
+      transform: scale(0.92);
+    }
+
+    .desk-drag-over {
+      border-color: #10b981 !important;
+      background-color: #ecfdf5 !important;
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3) !important;
+      transform: scale(1.08) !important;
+      z-index: 30;
+    }
+
+    .desk-empty {
+      background-color: #f8fafc;
+      border-style: dashed;
+      border-color: #cbd5e1;
+    }
+
+    .desk-pinned {
+      border-color: #f59e0b !important;
+      background-color: #fffbeb !important;
+    }
+
+    /* Classroom View Orientation Classes */
+    .view-flip-180 {
+      transform: rotate(180deg);
+    }
+    .view-flip-180 .desk-card-content,
+    .view-flip-180 .chalkboard-content,
+    .view-flip-180 .group-label,
+    .view-flip-180 .circle-center-label {
+      transform: rotate(180deg);
+    }
+
+    /* Unassigned Student Item */
+    .unassigned-item {
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .unassigned-item:hover {
+      transform: translateY(-3px) scale(1.05);
+    }
+
+    /* Print styling rules */
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 0.5cm;
+      }
+      
+      body {
+        background-color: white !important;
+        background-image: none !important;
+        color: black !important;
+      }
+
+      .no-print {
+        display: none !important;
+      }
+
+      .print-area {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        border: none !important;
+      }
+
+      .desk-card {
+        border: 2px solid #333 !important;
+        background-color: #fff !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+      }
+
+      .desk-empty {
+        border: 2px dashed #94a3b8 !important;
+        background-color: #fafafa !important;
+      }
+
+      .desk-pinned {
+        border: 2px solid #d97706 !important;
+        background-color: #fffdf5 !important;
+      }
+
+      .chalkboard-bg {
+        background-color: #2d5a3f !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col selection:bg-indigo-100">
+
+  <!-- Header (Non-Printable) -->
+  <header class="no-print bg-white/90 backdrop-blur-md border-b-2 border-amber-200/60 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-amber-400 text-amber-900 p-2.5 rounded-2xl shadow-sm transform -rotate-3 hover:rotate-0 transition">
+          <i class="fa-solid fa-school text-xl"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-extrabold text-slate-800 tracking-tight">학급 자리배치표</h1>
+            <span class="bg-indigo-100 text-indigo-700 text-[11px] font-bold px-2 py-0.5 rounded-full font-cute">아기자기 교실</span>
+          </div>
+          <p class="text-xs text-slate-500 font-medium">드래그 & 드롭으로 만들어가는 우리 반 자리 🎈</p>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <button onclick="window.print()" class="flex items-center space-x-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-2xl font-bold shadow-cute hover:shadow-cute-hover active:translate-y-1 active:shadow-cute-pressed transition">
+          <i class="fa-solid fa-print"></i>
+          <span>인쇄하기</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Workspace -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col lg:flex-row gap-6">
+
+    <!-- Control Sidebar (Left) -->
+    <aside class="no-print w-full lg:w-80 flex-shrink-0 space-y-5">
+      
+      <!-- 1. Layout Mode & Config -->
+      <div class="bg-white rounded-3xl p-5 border-2 border-amber-100 shadow-sm space-y-4">
+        <h2 class="font-bold text-base text-slate-800 flex items-center gap-2 border-b-2 border-slate-100 pb-3">
+          <i class="fa-solid fa-shapes text-indigo-500"></i> 책상 배치 모양
+        </h2>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">배치 형태</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="changeLayoutMode('pair')" id="btnModePair" class="layout-mode-btn p-2.5 rounded-2xl border-2 text-left flex flex-col items-center justify-center gap-1 transition">
+              <i class="fa-solid fa-user-group text-lg"></i>
+              <span class="text-xs font-bold">짝꿍 (2명)</span>
+            </button>
+            <button onclick="changeLayoutMode('single')" id="btnModeSingle" class="layout-mode-btn p-2.5 rounded-2xl border-2 text-left flex flex-col items-center justify-center gap-1 transition">
+              <i class="fa-solid fa-user text-lg"></i>
+              <span class="text-xs font-bold">1인 단독</span>
+            </button>
+            <button onclick="changeLayoutMode('group')" id="btnModeGroup" class="layout-mode-btn p-2.5 rounded-2xl border-2 text-left flex flex-col items-center justify-center gap-1 transition">
+              <i class="fa-solid fa-table-cells-large text-lg"></i>
+              <span class="text-xs font-bold">자유 모둠</span>
+            </button>
+            <button onclick="changeLayoutMode('circle')" id="btnModeCircle" class="layout-mode-btn p-2.5 rounded-2xl border-2 text-left flex flex-col items-center justify-center gap-1 transition">
+              <i class="fa-solid fa-circle-notch text-lg"></i>
+              <span class="text-xs font-bold">O형 (원형)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Inputs -->
+        <div class="space-y-3 pt-2 border-t border-slate-100">
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-xs font-bold text-slate-700">전체 학생 수</label>
+              <span id="capacityInfo" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">책상 24개</span>
+            </div>
+            <div class="relative">
+              <input type="number" id="studentCount" min="1" max="100" value="23" 
+                class="w-full pl-3 pr-10 py-2 border-2 border-slate-200 rounded-xl focus:border-indigo-400 focus:outline-none text-slate-900 font-bold"
+                onchange="updateConfigInputs()">
+              <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">명</span>
+            </div>
+          </div>
+
+          <!-- Group Member Size Control -->
+          <div id="groupSizeContainer">
+            <label class="block text-xs font-bold text-slate-700 mb-1">모둠당 인원수</label>
+            <div class="relative">
+              <input type="number" id="groupSize" min="2" max="8" value="4" 
+                class="w-full pl-3 pr-10 py-2 border-2 border-slate-200 rounded-xl focus:border-indigo-400 focus:outline-none text-slate-900 font-bold"
+                onchange="updateConfigInputs()">
+              <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">명/모둠</span>
+            </div>
+          </div>
+
+          <div id="groupCountContainer">
+            <label class="block text-xs font-bold text-slate-700 mb-1" id="groupCountLabel">분단 / 모둠 수 (가로)</label>
+            <div class="relative">
+              <input type="number" id="groupCount" min="1" max="10" value="3" 
+                class="w-full pl-3 pr-10 py-2 border-2 border-slate-200 rounded-xl focus:border-indigo-400 focus:outline-none text-slate-900 font-bold"
+                onchange="updateConfigInputs()">
+              <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">개</span>
+            </div>
+          </div>
+
+          <div id="rowCountContainer">
+            <label class="block text-xs font-bold text-slate-700 mb-1">줄 수 (세로)</label>
+            <div class="relative">
+              <input type="number" id="rowCount" min="1" max="10" value="4" 
+                class="w-full pl-3 pr-10 py-2 border-2 border-slate-200 rounded-xl focus:border-indigo-400 focus:outline-none text-slate-900 font-bold"
+                onchange="updateConfigInputs()">
+              <span class="absolute right-3 top-2.5 text-xs text-slate-400 font-bold">줄</span>
+            </div>
+          </div>
+        </div>
+
+        <button onclick="applyNewGrid()" class="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-2xl shadow-cute active:translate-y-0.5 transition flex items-center justify-center gap-2 text-xs">
+          <i class="fa-solid fa-arrows-rotate"></i>
+          <span>새 책상틀 만들기</span>
+        </button>
+      </div>
+
+      <!-- 2. Blackboard Direction Controls -->
+      <div class="bg-white rounded-3xl p-5 border-2 border-amber-100 shadow-sm space-y-4">
+        <h2 class="font-bold text-base text-slate-800 flex items-center gap-2 border-b-2 border-slate-100 pb-3">
+          <i class="fa-solid fa-compass text-emerald-500"></i> 칠판 위치 & 방향
+        </h2>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">칠판 배치</label>
+          <div class="grid grid-cols-4 gap-1.5">
+            <button onclick="setBoardPosition('top')" id="btnBoardTop" class="board-pos-btn py-2 px-1 rounded-xl border-2 text-xs font-bold text-center transition">상단</button>
+            <button onclick="setBoardPosition('bottom')" id="btnBoardBottom" class="board-pos-btn py-2 px-1 rounded-xl border-2 text-xs font-bold text-center transition">하단</button>
+            <button onclick="setBoardPosition('left')" id="btnBoardLeft" class="board-pos-btn py-2 px-1 rounded-xl border-2 text-xs font-bold text-center transition">좌측</button>
+            <button onclick="setBoardPosition('right')" id="btnBoardRight" class="board-pos-btn py-2 px-1 rounded-xl border-2 text-xs font-bold text-center transition">우측</button>
+          </div>
+        </div>
+
+        <div>
+          <button onclick="toggleViewFlip()" id="btnViewFlip" class="w-full border-2 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 font-bold py-2.5 rounded-2xl transition flex items-center justify-center gap-2 text-xs">
+            <i class="fa-solid fa-rotate-180"></i>
+            <span>화면 180도 회전 (교탁/학생 시점)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 3. Shuffle & Actions -->
+      <div class="bg-white rounded-3xl p-5 border-2 border-amber-100 shadow-sm space-y-3">
+        <h2 class="font-bold text-base text-slate-800 flex items-center gap-2 border-b-2 border-slate-100 pb-3">
+          <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> 스마트 배치 기능
+        </h2>
+
+        <button onclick="shuffleSeats()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-2xl shadow-cute hover:shadow-cute-hover active:translate-y-1 active:shadow-cute-pressed transition flex items-center justify-center gap-2 text-sm">
+          <i class="fa-solid fa-shuffle"></i>
+          <span>대기 학생 포함 무작위 배치 🎲</span>
+        </button>
+
+        <button onclick="resetAllToUnassigned()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2.5 rounded-2xl border-2 border-rose-200 transition active:scale-95 flex items-center justify-center gap-2 text-xs">
+          <i class="fa-solid fa-arrow-rotate-left"></i>
+          <span>전체 명단 대기석으로 회수</span>
+        </button>
+
+        <!-- Quick Tips -->
+        <div class="bg-amber-50/60 border border-amber-200/80 rounded-2xl p-3 text-[11px] text-slate-600 space-y-1">
+          <p class="font-bold text-amber-900 flex items-center gap-1">
+            <i class="fa-solid fa-lightbulb text-amber-500"></i> 사용 팁
+          </p>
+          <ul class="list-disc list-inside space-y-0.5 leading-relaxed text-slate-600">
+            <li><strong>대기석 학생 끌어오기</strong>: 하단 학생 번호를 끌어서 빈 책상에 넣을 수 있습니다.</li>
+            <li><strong>📌 핀 버튼</strong>: 고정된 자리는 랜덤 배치 시 유지됩니다.</li>
+            <li><strong>🚫 빈자리/돌려보내기</strong>: 카드의 ✕ 버튼으로 다시 대기석에 보냅니다.</li>
+          </ul>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Classroom Canvas (Right Area) -->
+    <section class="flex-1 flex flex-col items-center space-y-6">
+      
+      <!-- Print Printable Container -->
+      <div id="printArea" class="print-area w-full bg-white rounded-3xl border-2 border-amber-100 shadow-sm p-6 sm:p-8 transition-all flex flex-col items-center min-h-[580px]">
+        
+        <!-- Header for Print Title -->
+        <div class="w-full text-center mb-6 hidden print:block">
+          <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">우리반 자리배치표</h1>
+          <p class="text-xs text-slate-500 mt-1" id="printDate"></p>
+        </div>
+
+        <!-- Classroom Layout Area -->
+        <div id="classroomOrientationContainer" class="w-full flex flex-col items-center gap-6 transition-all duration-300">
+          
+          <!-- Top Blackboard -->
+          <div id="boardTop" class="board-element w-full max-w-2xl bg-pastel-chalkboard chalkboard-bg text-emerald-100 border-8 border-amber-800 rounded-2xl py-3 px-6 text-center font-bold text-lg shadow-md tracking-widest flex items-center justify-center gap-2">
+            <i class="fa-solid fa-chalkboard text-amber-400 no-print"></i>
+            <span class="chalkboard-content font-bold">칠 판 (앞)</span>
+          </div>
+
+          <!-- Middle Flex Wrapper -->
+          <div class="w-full flex items-center justify-center gap-6">
+            
+            <!-- Left Blackboard -->
+            <div id="boardLeft" class="board-element hidden h-80 w-16 bg-pastel-chalkboard chalkboard-bg text-emerald-100 border-8 border-amber-800 rounded-2xl py-4 px-2 text-center font-bold text-base shadow-md tracking-widest flex flex-col items-center justify-center gap-2">
+              <i class="fa-solid fa-chalkboard text-amber-400 no-print"></i>
+              <span class="chalkboard-content [writing-mode:vertical-rl]">칠 판</span>
+            </div>
+
+            <!-- Classroom Grid Container -->
+            <div id="classroomGrid" class="flex justify-center items-center overflow-x-auto p-2 min-h-[360px] w-full">
+              <!-- Dynamically generated desk layout -->
+            </div>
+
+            <!-- Right Blackboard -->
+            <div id="boardRight" class="board-element hidden h-80 w-16 bg-pastel-chalkboard chalkboard-bg text-emerald-100 border-8 border-amber-800 rounded-2xl py-4 px-2 text-center font-bold text-base shadow-md tracking-widest flex flex-col items-center justify-center gap-2">
+              <i class="fa-solid fa-chalkboard text-amber-400 no-print"></i>
+              <span class="chalkboard-content [writing-mode:vertical-rl]">칠 판</span>
+            </div>
+
+          </div>
+
+          <!-- Bottom Blackboard -->
+          <div id="boardBottom" class="board-element hidden w-full max-w-2xl bg-pastel-chalkboard chalkboard-bg text-emerald-100 border-8 border-amber-800 rounded-2xl py-3 px-6 text-center font-bold text-lg shadow-md tracking-widest flex items-center justify-center gap-2">
+            <i class="fa-solid fa-chalkboard text-amber-400 no-print"></i>
+            <span class="chalkboard-content font-bold">칠 판 (앞)</span>
+          </div>
+
+        </div>
+
+        <!-- Interactive Status Banner -->
+        <div id="statusBanner" class="no-print mt-6 text-xs sm:text-sm text-slate-600 bg-amber-50/80 border border-amber-200/80 px-5 py-2.5 rounded-full flex items-center gap-2 shadow-xs">
+          <i class="fa-solid fa-hand-pointer text-indigo-500"></i>
+          <span id="statusText">하단 대기석의 학생을 끌어오거나, 책상을 클릭하여 배치해보세요!</span>
+        </div>
+
+      </div>
+
+      <!-- Bottom Section: Unassigned Students Zone -->
+      <div class="no-print w-full bg-white rounded-3xl border-2 border-amber-100 p-5 sm:p-6 shadow-sm space-y-3">
+        <div class="flex items-center justify-between border-b-2 border-slate-100 pb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
+              <i class="fa-solid fa-users text-xs"></i>
+            </div>
+            <div>
+              <h3 class="font-bold text-slate-800 text-sm sm:text-base">아직 배치되지 않은 학생 (대기석)</h3>
+              <p class="text-[11px] text-slate-400">학생 번호를 끌어서 상단 원하는 책상에 바로 올릴 수 있어요!</p>
+            </div>
+          </div>
+          <span id="unassignedCountBadge" class="text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-cute text-sm">대기 0명</span>
+        </div>
+
+        <!-- Unassigned Drop Zone / Container -->
+        <div id="unassignedList" class="flex flex-wrap gap-2.5 p-3 min-h-[90px] bg-slate-50/80 rounded-2xl border-2 border-dashed border-slate-200 items-center transition-all">
+          <!-- Unassigned student tags generated dynamically -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="no-print fixed bottom-6 right-6 bg-slate-900/90 backdrop-blur-md text-white px-5 py-3 rounded-2xl shadow-2xl opacity-0 transition-opacity duration-300 pointer-events-none flex items-center gap-3 z-50 border border-slate-700">
+    <i class="fa-solid fa-heart text-amber-400 text-base"></i>
+    <span id="toastMsg" class="text-xs sm:text-sm font-semibold"></span>
+  </div>
+
+  <script>
+    // State management
+    let config = {
+      mode: 'pair',      // 'pair', 'single', 'group', 'circle'
+      students: 23,
+      groups: 3,         // 분단 / 모둠 수
+      rows: 4,           // 세로 줄 수
+      groupSize: 4,      // 모둠 당 인원수 (자유 모둠)
+      boardPos: 'top',   // 'top', 'bottom', 'left', 'right'
+      isFlipped: false   // 180도 회전 여부
+    };
+
+    // Desk Objects Array: { id: number, student: number|null, disabled: boolean, pinned: boolean }
+    let desks = [];
+    let selectedDeskIndex = null;
+    let selectedUnassignedStudent = null;
+    let dragSource = null; // { type: 'desk'|'unassigned', index: number|null, student: number|null }
+
+    const STORAGE_KEY = 'elementary_seating_v8';
+
+    // DOM Elements
+    const studentInput = document.getElementById('studentCount');
+    const groupInput = document.getElementById('groupCount');
+    const rowInput = document.getElementById('rowCount');
+    const groupSizeInput = document.getElementById('groupSize');
+    const gridContainer = document.getElementById('classroomGrid');
+    const unassignedContainer = document.getElementById('unassignedList');
+    const statusText = document.getElementById('statusText');
+    const classroomWrapper = document.getElementById('classroomOrientationContainer');
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadState();
+      renderGrid();
+      renderUnassignedList();
+      updateControlsUI();
+      
+      const today = new Date();
+      document.getElementById('printDate').innerText = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 작성`;
+    });
+
+    // Save State to localStorage
+    function saveState() {
+      const payload = { config, desks };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      updateCapacityBadge();
+    }
+
+    // Load State from localStorage
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          config = parsed.config || config;
+          desks = parsed.desks || [];
+          
+          studentInput.value = config.students;
+          groupInput.value = config.groups;
+          rowInput.value = config.rows;
+          if (groupSizeInput) groupSizeInput.value = config.groupSize || 4;
+        } catch (e) {
+          console.error("Failed to load saved state", e);
+        }
+      }
+
+      const totalCapacity = calculateTotalCapacity();
+      // Adjust desks array size if needed while preserving existing desk states
+      if (!desks || desks.length === 0) {
+        initializeDesksEmpty();
+      } else if (desks.length < totalCapacity) {
+        for (let i = desks.length; i < totalCapacity; i++) {
+          desks.push({ id: i, student: null, disabled: false, pinned: false });
+        }
+      } else if (desks.length > totalCapacity) {
+        desks = desks.slice(0, totalCapacity);
+      }
+      updateCapacityBadge();
+    }
+
+    function updateConfigInputs() {
+      config.students = parseInt(studentInput.value) || 0;
+      config.groups = parseInt(groupInput.value) || 1;
+      config.rows = parseInt(rowInput.value) || 1;
+      config.groupSize = parseInt(groupSizeInput.value) || 4;
+      updateCapacityBadge();
+    }
+
+    function calculateTotalCapacity() {
+      if (config.mode === 'pair') return config.groups * 2 * config.rows;
+      if (config.mode === 'single') return config.groups * config.rows;
+      if (config.mode === 'group') return config.groups * config.groupSize;
+      if (config.mode === 'circle') return config.students > 0 ? config.students : 20;
+      return config.groups * config.rows;
+    }
+
+    function updateCapacityBadge() {
+      const total = calculateTotalCapacity();
+      const activeCount = desks.filter(d => !d.disabled).length;
+      document.getElementById('capacityInfo').innerText = `총 책상 ${total}개 (사용 가능 ${activeCount}개)`;
+    }
+
+    // Initialize all desks as empty
+    function initializeDesksEmpty() {
+      const totalCapacity = calculateTotalCapacity();
+      desks = [];
+
+      for (let i = 0; i < totalCapacity; i++) {
+        desks.push({ id: i, student: null, disabled: false, pinned: false });
+      }
+      selectedDeskIndex = null;
+      selectedUnassignedStudent = null;
+      updateStatusBanner();
+    }
+
+    // Get List of Unassigned Students
+    function getUnassignedStudents() {
+      const assignedSet = new Set();
+      desks.forEach(d => {
+        if (d.student !== null && d.student <= config.students) assignedSet.add(d.student);
+      });
+
+      const unassigned = [];
+      for (let i = 1; i <= config.students; i++) {
+        if (!assignedSet.has(i)) {
+          unassigned.push(i);
+        }
+      }
+      return unassigned;
+    }
+
+    // Change Layout Mode
+    function changeLayoutMode(newMode) {
+      config.mode = newMode;
+      
+      const groupLabel = document.getElementById('groupCountLabel');
+      const groupContainer = document.getElementById('groupCountContainer');
+      const rowContainer = document.getElementById('rowCountContainer');
+      const groupSizeContainer = document.getElementById('groupSizeContainer');
+
+      if (newMode === 'pair') {
+        groupLabel.innerText = '분단 수 (가로)';
+        groupContainer.style.display = 'block';
+        rowContainer.style.display = 'block';
+        groupSizeContainer.style.display = 'none';
+      } else if (newMode === 'single') {
+        groupLabel.innerText = '줄 수 (가로)';
+        groupContainer.style.display = 'block';
+        rowContainer.style.display = 'block';
+        groupSizeContainer.style.display = 'none';
+      } else if (newMode === 'group') {
+        groupLabel.innerText = '모둠 수 (총 모둠)';
+        groupContainer.style.display = 'block';
+        rowContainer.style.display = 'none';
+        groupSizeContainer.style.display = 'block';
+      } else if (newMode === 'circle') {
+        groupContainer.style.display = 'none';
+        rowContainer.style.display = 'none';
+        groupSizeContainer.style.display = 'none';
+      }
+
+      updateConfigInputs();
+      initializeDesksEmpty();
+      renderGrid();
+      renderUnassignedList();
+      updateControlsUI();
+      saveState();
+      showToast('배치 형태가 변경되었습니다 ✨');
+    }
+
+    function applyNewGrid() {
+      updateConfigInputs();
+      initializeDesksEmpty();
+      renderGrid();
+      renderUnassignedList();
+      saveState();
+      showToast('새로운 책상틀이 적용되었습니다 🏫');
+    }
+
+    // Blackboard Orientation Control
+    function setBoardPosition(pos) {
+      config.boardPos = pos;
+      updateBoardLayoutUI();
+      saveState();
+      showToast(`칠판 위치가 [${getPosLabel(pos)}]로 설정되었습니다.`);
+    }
+
+    function getPosLabel(pos) {
+      if (pos === 'top') return '상단';
+      if (pos === 'bottom') return '하단';
+      if (pos === 'left') return '좌측';
+      if (pos === 'right') return '우측';
+      return '상단';
+    }
+
+    function toggleViewFlip() {
+      config.isFlipped = !config.isFlipped;
+      updateBoardLayoutUI();
+      saveState();
+      showToast(config.isFlipped ? '시점이 180도 회전되었습니다 (교탁/학생 시점)' : '시점이 원래대로 돌아왔습니다.');
+    }
+
+    function updateBoardLayoutUI() {
+      document.querySelectorAll('.board-element').forEach(el => el.classList.add('hidden'));
+
+      const targetBoard = document.getElementById(`board${config.boardPos.charAt(0).toUpperCase() + config.boardPos.slice(1)}`);
+      if (targetBoard) targetBoard.classList.remove('hidden');
+
+      if (config.isFlipped) {
+        classroomWrapper.classList.add('view-flip-180');
+      } else {
+        classroomWrapper.classList.remove('view-flip-180');
+      }
+
+      updateControlsUI();
+    }
+
+    function updateControlsUI() {
+      const modeBtns = {
+        pair: document.getElementById('btnModePair'),
+        single: document.getElementById('btnModeSingle'),
+        group: document.getElementById('btnModeGroup'),
+        circle: document.getElementById('btnModeCircle')
+      };
+
+      Object.keys(modeBtns).forEach(m => {
+        if (modeBtns[m]) {
+          if (m === config.mode) {
+            modeBtns[m].className = 'layout-mode-btn p-2.5 rounded-2xl border-2 border-indigo-500 bg-indigo-50 text-indigo-700 font-bold flex flex-col items-center justify-center gap-1 shadow-sm';
+          } else {
+            modeBtns[m].className = 'layout-mode-btn p-2.5 rounded-2xl border-2 border-slate-100 bg-white text-slate-500 hover:bg-slate-50 font-medium flex flex-col items-center justify-center gap-1 transition';
+          }
+        }
+      });
+
+      const posBtns = {
+        top: document.getElementById('btnBoardTop'),
+        bottom: document.getElementById('btnBoardBottom'),
+        left: document.getElementById('btnBoardLeft'),
+        right: document.getElementById('btnBoardRight')
+      };
+
+      Object.keys(posBtns).forEach(p => {
+        if (posBtns[p]) {
+          if (p === config.boardPos) {
+            posBtns[p].className = 'board-pos-btn py-2 px-1 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-800 font-bold text-xs text-center shadow-xs';
+          } else {
+            posBtns[p].className = 'board-pos-btn py-2 px-1 rounded-xl border-2 border-slate-100 bg-white text-slate-500 hover:bg-slate-50 text-xs font-semibold text-center transition';
+          }
+        }
+      });
+
+      const flipBtn = document.getElementById('btnViewFlip');
+      if (flipBtn) {
+        if (config.isFlipped) {
+          flipBtn.className = 'w-full border-2 border-indigo-500 bg-indigo-500 text-white font-bold py-2.5 rounded-2xl transition flex items-center justify-center gap-2 text-xs shadow-sm';
+        } else {
+          flipBtn.className = 'w-full border-2 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 font-bold py-2.5 rounded-2xl transition flex items-center justify-center gap-2 text-xs';
+        }
+      }
+    }
+
+    // Smart Random Shuffle (Includes unassigned students)
+    function shuffleSeats() {
+      const pinnedStudents = new Set();
+      desks.forEach(d => {
+        if (d.pinned && d.student !== null) {
+          pinnedStudents.add(d.student);
+        }
+      });
+
+      // Find all unpinned students
+      let unpinnedStudents = [];
+      for (let i = 1; i <= config.students; i++) {
+        if (!pinnedStudents.has(i)) {
+          unpinnedStudents.push(i);
+        }
+      }
+
+      // Fisher-Yates Shuffle
+      for (let i = unpinnedStudents.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unpinnedStudents[i], unpinnedStudents[j]] = [unpinnedStudents[j], unpinnedStudents[i]];
+      }
+
+      // Target unpinned active desks
+      const targetDeskIndices = [];
+      desks.forEach((d, idx) => {
+        if (!d.disabled && !d.pinned) {
+          targetDeskIndices.push(idx);
+        }
+      });
+
+      // Clear non-pinned desks
+      targetDeskIndices.forEach(deskIdx => {
+        desks[deskIdx].student = null;
+      });
+
+      // Place shuffled students into target desks
+      targetDeskIndices.forEach((deskIdx, order) => {
+        if (order < unpinnedStudents.length) {
+          desks[deskIdx].student = unpinnedStudents[order];
+        } else {
+          desks[deskIdx].student = null;
+        }
+      });
+
+      selectedDeskIndex = null;
+      selectedUnassignedStudent = null;
+      renderGrid();
+      renderUnassignedList();
+      saveState();
+      updateStatusBanner();
+      showToast('고정(📌) 자리를 제외하고 무작위로 새로 배치했습니다! 🎲');
+    }
+
+    // Reset All Students to Unassigned Area
+    function resetAllToUnassigned() {
+      desks.forEach(d => {
+        d.student = null;
+        d.pinned = false;
+      });
+
+      selectedDeskIndex = null;
+      selectedUnassignedStudent = null;
+      renderGrid();
+      renderUnassignedList();
+      saveState();
+      updateStatusBanner();
+      showToast('모든 학생이 대기석으로 회수되었습니다.');
+    }
+
+    // Send single desk student back to unassigned list
+    function removeStudentFromDesk(index, event) {
+      if (event) event.stopPropagation();
+      const desk = desks[index];
+      if (desk.student !== null) {
+        const sNum = desk.student;
+        desk.student = null;
+        desk.pinned = false;
+        renderGrid();
+        renderUnassignedList();
+        saveState();
+        showToast(`${sNum}번 학생이 대기석으로 이동했습니다.`);
+      }
+    }
+
+    // Toggle Pin Status
+    function togglePin(index, event) {
+      event.stopPropagation();
+      const desk = desks[index];
+      if (desk.student === null) {
+        showToast('학생이 앉아 있는 자리만 고정할 수 있습니다.');
+        return;
+      }
+      desk.pinned = !desk.pinned;
+
+      renderGrid();
+      saveState();
+      showToast(desk.pinned ? '해당 자리가 고정(📌)되었습니다.' : '자리 고정이 해제되었습니다.');
+    }
+
+    // Toggle Empty Seat Status (Disabled)
+    function toggleEmptyDesk(index, event) {
+      event.stopPropagation();
+      const desk = desks[index];
+      desk.disabled = !desk.disabled;
+
+      if (desk.disabled && desk.student !== null) {
+        desk.student = null;
+        desk.pinned = false;
+      }
+
+      if (selectedDeskIndex === index) selectedDeskIndex = null;
+
+      renderGrid();
+      renderUnassignedList();
+      saveState();
+      updateStatusBanner();
+      showToast(desk.disabled ? '해당 자리를 사용할 수 없도록 비웠습니다.' : '해당 자리를 사용 가능으로 전환했습니다.');
+    }
+
+    // Assign Student directly to Desk
+    function assignStudentToDesk(studentNum, deskIndex) {
+      if (desks[deskIndex].disabled) {
+        showToast('사용할 수 없도록 비워둔 자리입니다.');
+        return;
+      }
+
+      // If student is already at another desk, swap/remove
+      desks.forEach(d => {
+        if (d.student === studentNum) {
+          d.student = null;
+          d.pinned = false;
+        }
+      });
+
+      desks[deskIndex].student = studentNum;
+      selectedDeskIndex = null;
+      selectedUnassignedStudent = null;
+
+      renderGrid();
+      renderUnassignedList();
+      saveState();
+      updateStatusBanner();
+      showToast(`${studentNum}번 학생이 성공적으로 배치되었습니다! ✨`);
+    }
+
+    // Swap Logic between Desks
+    function executeDeskSwap(fromIdx, toIdx) {
+      if (fromIdx === toIdx) return;
+      if (desks[toIdx].disabled) {
+        showToast('비워진 자리 위치로는 옮길 수 없습니다.');
+        return;
+      }
+
+      const tempStudent = desks[fromIdx].student;
+      const tempPinned = desks[fromIdx].pinned;
+
+      desks[fromIdx].student = desks[toIdx].student;
+      desks[fromIdx].pinned = desks[toIdx].pinned;
+
+      desks[toIdx].student = tempStudent;
+      desks[toIdx].pinned = tempPinned;
+
+      selectedDeskIndex = null;
+      selectedUnassignedStudent = null;
+
+      renderGrid();
+      renderUnassignedList();
+      saveState();
+      updateStatusBanner();
+      showToast('두 자리의 위치가 서로 변경되었습니다! 🔄');
+    }
+
+    // Handle Desk Click Interaction
+    function handleDeskClick(index) {
+      if (desks[index].disabled) {
+        showToast('비워진 상태입니다. 우측 상단 버튼으로 활성화해보세요.');
+        return;
+      }
+
+      // If an unassigned student was previously selected, assign directly
+      if (selectedUnassignedStudent !== null) {
+        assignStudentToDesk(selectedUnassignedStudent, index);
+        return;
+      }
+
+      // Desk-to-Desk click swapping
+      if (selectedDeskIndex === null) {
+        selectedDeskIndex = index;
+        renderGrid();
+        updateStatusBanner();
+      } else if (selectedDeskIndex === index) {
+        selectedDeskIndex = null;
+        renderGrid();
+        updateStatusBanner();
+      } else {
+        executeDeskSwap(selectedDeskIndex, index);
+      }
+    }
+
+    // Handle Unassigned Student Tag Click
+    function handleUnassignedClick(studentNum) {
+      if (selectedUnassignedStudent === studentNum) {
+        selectedUnassignedStudent = null;
+      } else {
+        selectedUnassignedStudent = studentNum;
+        selectedDeskIndex = null;
+      }
+      renderUnassignedList();
+      renderGrid();
+      updateStatusBanner();
+    }
+
+    function updateStatusBanner() {
+      if (selectedUnassignedStudent !== null) {
+        statusText.innerHTML = `<span class="font-bold text-indigo-600 font-cute text-base">${selectedUnassignedStudent}번</span> 학생을 선택했습니다. 상단의 들어갈 책상을 클릭하세요!`;
+      } else if (selectedDeskIndex !== null) {
+        const studentNum = desks[selectedDeskIndex].student ? `${desks[selectedDeskIndex].student}번` : '빈책상';
+        statusText.innerHTML = `<span class="font-bold text-indigo-600 font-cute text-base">${studentNum}</span> 자리를 선택했습니다. 다른 책상을 눌러 바꾸거나 하단 대기석으로 보낼 수 있습니다.`;
+      } else {
+        statusText.innerText = '하단 대기석의 학생을 끌어오거나, 책상을 클릭하여 자리를 자유롭게 배치해보세요!';
+      }
+    }
+
+    // HTML5 & Touch Drag and Drop Event Handlers
+    function handleDragStartDesk(e, index) {
+      dragSource = { type: 'desk', index: index, student: desks[index].student };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', JSON.stringify(dragSource));
+      e.target.classList.add('desk-dragging');
+    }
+
+    function handleDragStartUnassigned(e, studentNum) {
+      dragSource = { type: 'unassigned', index: null, student: studentNum };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', JSON.stringify(dragSource));
+      e.target.classList.add('opacity-40');
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragEnter(e) {
+      e.preventDefault();
+      const targetCard = e.currentTarget;
+      if (targetCard) targetCard.classList.add('desk-drag-over');
+    }
+
+    function handleDragLeave(e) {
+      const targetCard = e.currentTarget;
+      if (targetCard) targetCard.classList.remove('desk-drag-over');
+    }
+
+    function handleDropDesk(e, targetIndex) {
+      e.preventDefault();
+      const targetCard = e.currentTarget;
+      if (targetCard) targetCard.classList.remove('desk-drag-over');
+
+      if (!dragSource) return;
+
+      if (dragSource.type === 'unassigned') {
+        assignStudentToDesk(dragSource.student, targetIndex);
+      } else if (dragSource.type === 'desk' && dragSource.index !== null) {
+        executeDeskSwap(dragSource.index, targetIndex);
+      }
+      dragSource = null;
+    }
+
+    function handleDropUnassignedZone(e) {
+      e.preventDefault();
+      unassignedContainer.classList.remove('border-indigo-400', 'bg-indigo-50/50');
+      if (dragSource && dragSource.type === 'desk' && dragSource.index !== null) {
+        removeStudentFromDesk(dragSource.index);
+      }
+      dragSource = null;
+    }
+
+    function handleDragEnd(e) {
+      e.target.classList.remove('desk-dragging', 'opacity-40');
+      document.querySelectorAll('.desk-drag-over').forEach(el => el.classList.remove('desk-drag-over'));
+      dragSource = null;
+    }
+
+    // Touch Event Handlers for Mobile
+    let touchStartElem = null;
+
+    function handleTouchStart(e, sourceObj) {
+      dragSource = sourceObj;
+      touchStartElem = e.currentTarget;
+      touchStartElem.classList.add('desk-dragging');
+    }
+
+    function handleTouchMove(e) {
+      if (!dragSource) return;
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      const targetElem = document.elementFromPoint(touch.clientX, touch.clientY);
+
+      document.querySelectorAll('.desk-drag-over').forEach(el => el.classList.remove('desk-drag-over'));
+      if (targetElem) {
+        const deskCard = targetElem.closest('.desk-card');
+        if (deskCard && deskCard !== touchStartElem) {
+          deskCard.classList.add('desk-drag-over');
+        }
+      }
+    }
+
+    function handleTouchEnd(e) {
+      if (!dragSource) return;
+
+      if (touchStartElem) touchStartElem.classList.remove('desk-dragging');
+      document.querySelectorAll('.desk-drag-over').forEach(el => el.classList.remove('desk-drag-over'));
+
+      const touch = e.changedTouches[0];
+      const targetElem = document.elementFromPoint(touch.clientX, touch.clientY);
+
+      if (targetElem) {
+        const deskCard = targetElem.closest('.desk-card');
+        const unassignedZone = targetElem.closest('#unassignedList');
+
+        if (deskCard && deskCard.dataset.index !== undefined) {
+          const dropTargetIdx = parseInt(deskCard.dataset.index);
+          if (dragSource.type === 'unassigned') {
+            assignStudentToDesk(dragSource.student, dropTargetIdx);
+          } else if (dragSource.type === 'desk' && dragSource.index !== dropTargetIdx) {
+            executeDeskSwap(dragSource.index, dropTargetIdx);
+          }
+        } else if (unassignedZone && dragSource.type === 'desk') {
+          removeStudentFromDesk(dragSource.index);
+        }
+      }
+
+      dragSource = null;
+      touchStartElem = null;
+    }
+
+    // Create Desk Card Element
+    function createDeskElement(index, isCircle = false) {
+      const desk = desks[index] || { id: index, student: null, disabled: false, pinned: false };
+      const deskCard = document.createElement('div');
+      deskCard.dataset.index = index;
+
+      let sizeClasses = isCircle ? 'w-14 h-14 sm:w-16 sm:h-16 circle-card ' : 'w-16 h-16 sm:w-20 sm:h-20 ';
+      let cardStyle = `desk-card ${sizeClasses} rounded-2xl flex flex-col items-center justify-center cursor-pointer border-2 relative shadow-xs transition-all `;
+
+      if (desk.disabled) {
+        cardStyle += 'desk-empty text-slate-300 hover:border-slate-400';
+      } else if (index === selectedDeskIndex) {
+        cardStyle += 'desk-selected border-indigo-500 bg-indigo-50/90 shadow-md';
+      } else if (desk.pinned) {
+        cardStyle += 'desk-pinned bg-amber-50/80 border-amber-400 text-slate-800 hover:border-amber-500';
+      } else if (desk.student !== null) {
+        cardStyle += 'bg-white border-amber-200/90 text-slate-800 hover:border-amber-400';
+      } else {
+        cardStyle += 'bg-slate-50 border-dashed border-slate-200 text-slate-400 hover:bg-slate-100/80';
+      }
+
+      deskCard.className = cardStyle;
+      deskCard.onclick = () => handleDeskClick(index);
+
+      // Drag and Drop Attributes & Events
+      if (!desk.disabled) {
+        deskCard.draggable = true;
+        deskCard.ondragstart = (e) => handleDragStartDesk(e, index);
+        deskCard.ondragover = handleDragOver;
+        deskCard.ondragenter = handleDragEnter;
+        deskCard.ondragleave = handleDragLeave;
+        deskCard.ondrop = (e) => handleDropDesk(e, index);
+        deskCard.ondragend = handleDragEnd;
+
+        // Touch drag support
+        deskCard.addEventListener('touchstart', (e) => handleTouchStart(e, { type: 'desk', index: index, student: desk.student }), { passive: false });
+        deskCard.addEventListener('touchmove', handleTouchMove, { passive: false });
+        deskCard.addEventListener('touchend', handleTouchEnd);
+      }
+
+      // Pin Button (Top-Left)
+      if (!desk.disabled && desk.student !== null) {
+        const pinBtn = document.createElement('button');
+        pinBtn.className = 'no-print absolute -top-1.5 -left-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition z-10 ' +
+          (desk.pinned ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600');
+        pinBtn.title = desk.pinned ? '고정 해제' : '자리 고정하기';
+        pinBtn.innerHTML = '<i class="fa-solid fa-thumbtack text-[9px]"></i>';
+        pinBtn.onclick = (e) => togglePin(index, e);
+        deskCard.appendChild(pinBtn);
+      }
+
+      // Clear/Remove Button (Top-Right)
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'no-print absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition z-10 ' +
+        (desk.student !== null ? 'bg-rose-100 text-rose-500 hover:bg-rose-500 hover:text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200');
+      clearBtn.title = desk.student !== null ? '대기석으로 보내기' : (desk.disabled ? '자리 활성화' : '자리 비우기');
+      clearBtn.innerHTML = desk.student !== null ? '<i class="fa-solid fa-xmark text-[10px]"></i>' : (desk.disabled ? '<i class="fa-solid fa-plus text-[10px]"></i>' : '<i class="fa-solid fa-ban text-[10px]"></i>');
+      clearBtn.onclick = (e) => {
+        if (desk.student !== null) removeStudentFromDesk(index, e);
+        else toggleEmptyDesk(index, e);
+      };
+      deskCard.appendChild(clearBtn);
+
+      // Card Content Container
+      const content = document.createElement('div');
+      content.className = 'desk-card-content flex flex-col items-center justify-center pointer-events-none transition-transform duration-300';
+
+      if (desk.disabled) {
+        content.innerHTML = `
+          <i class="fa-solid fa-ban text-slate-300 text-xs mb-0.5"></i>
+          <span class="text-[10px] font-bold text-slate-300">비움</span>
+        `;
+      } else if (desk.student !== null) {
+        content.innerHTML = `
+          <div class="flex items-center gap-0.5">
+            <span class="${isCircle ? 'text-base sm:text-lg' : 'text-lg sm:text-xl'} font-extrabold text-slate-800 tracking-tight font-cute">${desk.student}<span class="text-xs font-normal text-slate-500 ml-0.5">번</span></span>
+            ${desk.pinned ? '<span class="text-amber-500 text-[10px]">📌</span>' : ''}
+          </div>
+        `;
+      } else {
+        content.innerHTML = `
+          <i class="fa-solid fa-plus text-slate-300 text-xs mb-0.5 no-print"></i>
+          <span class="text-xs font-bold text-slate-300 font-cute">빈책상</span>
+        `;
+      }
+
+      deskCard.appendChild(content);
+      return deskCard;
+    }
+
+    // Render Grid Based on Selected Mode
+    function renderGrid() {
+      gridContainer.innerHTML = '';
+      updateBoardLayoutUI();
+
+      if (config.mode === 'pair') {
+        renderPairLayout();
+      } else if (config.mode === 'single') {
+        renderSingleLayout();
+      } else if (config.mode === 'group') {
+        renderCustomGroupLayout();
+      } else if (config.mode === 'circle') {
+        renderCircleLayout();
+      }
+    }
+
+    // 1. 짝꿍 배치 (2명 세트 분단)
+    function renderPairLayout() {
+      const container = document.createElement('div');
+      container.className = 'flex flex-wrap justify-center gap-5 sm:gap-7 max-w-full';
+
+      let seatIndex = 0;
+      for (let g = 0; g < config.groups; g++) {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'flex flex-col gap-2.5 items-center bg-amber-50/40 p-3 rounded-3xl border-2 border-amber-100/80 shadow-2xs';
+
+        const label = document.createElement('div');
+        label.className = 'group-label text-[11px] font-bold text-amber-800/60 no-print mb-0.5 font-cute';
+        label.innerText = `${g + 1}분단`;
+        groupEl.appendChild(label);
+
+        for (let r = 0; r < config.rows; r++) {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'flex gap-2 sm:gap-2.5';
+
+          for (let d = 0; d < 2; d++) {
+            if (seatIndex < desks.length) {
+              rowEl.appendChild(createDeskElement(seatIndex++));
+            }
+          }
+          groupEl.appendChild(rowEl);
+        }
+        container.appendChild(groupEl);
+      }
+      gridContainer.appendChild(container);
+    }
+
+    // 2. 1인 단독 배치
+    function renderSingleLayout() {
+      const container = document.createElement('div');
+      container.className = 'flex flex-wrap justify-center gap-4 sm:gap-5 max-w-full';
+
+      let seatIndex = 0;
+      for (let g = 0; g < config.groups; g++) {
+        const colEl = document.createElement('div');
+        colEl.className = 'flex flex-col gap-2.5 items-center bg-amber-50/40 p-3 rounded-3xl border-2 border-amber-100/80';
+
+        const label = document.createElement('div');
+        label.className = 'group-label text-[11px] font-bold text-amber-800/60 no-print mb-0.5 font-cute';
+        label.innerText = `${g + 1}줄`;
+        colEl.appendChild(label);
+
+        for (let r = 0; r < config.rows; r++) {
+          if (seatIndex < desks.length) {
+            colEl.appendChild(createDeskElement(seatIndex++));
+          }
+        }
+        container.appendChild(colEl);
+      }
+      gridContainer.appendChild(container);
+    }
+
+    // 3. 사용자 지정 모둠 배치 (2~8명 지정 모둠)
+    function renderCustomGroupLayout() {
+      const container = document.createElement('div');
+      container.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-7 max-w-full';
+
+      const memberPerGroup = config.groupSize || 4;
+      let cols = Math.min(Math.ceil(memberPerGroup / 2), 4);
+
+      let seatIndex = 0;
+      for (let g = 0; g < config.groups; g++) {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'flex flex-col items-center bg-amber-50/50 p-3.5 rounded-3xl border-2 border-amber-100 shadow-2xs';
+
+        const label = document.createElement('div');
+        label.className = 'group-label text-[11px] font-bold text-indigo-600 no-print mb-2 font-cute';
+        label.innerText = `모둠 ${g + 1} (${memberPerGroup}인)`;
+        groupEl.appendChild(label);
+
+        const groupGrid = document.createElement('div');
+        groupGrid.className = 'grid gap-2 sm:gap-2.5';
+        groupGrid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+
+        for (let d = 0; d < memberPerGroup; d++) {
+          if (seatIndex < desks.length) {
+            groupGrid.appendChild(createDeskElement(seatIndex++));
+          }
+        }
+        groupEl.appendChild(groupGrid);
+        container.appendChild(groupEl);
+      }
+      gridContainer.appendChild(container);
+    }
+
+    // 4. O형 (원형) 배치 - 개선된 가변 원형 스페이싱 및 레이아웃
+    function renderCircleLayout() {
+      const totalDesks = desks.length;
+      if (totalDesks === 0) return;
+
+      // Dynamically calculate radius based on desk count to avoid overlap
+      const baseRadius = Math.max(160, Math.min(320, totalDesks * 11));
+      const containerWidth = (baseRadius * 2) + 120;
+      const containerHeight = (baseRadius * 2) + 120;
+
+      const circleWrapper = document.createElement('div');
+      circleWrapper.className = 'relative flex items-center justify-center my-4 mx-auto transition-all duration-300';
+      circleWrapper.style.width = `${containerWidth}px`;
+      circleWrapper.style.height = `${containerHeight}px`;
+
+      const centerLabel = document.createElement('div');
+      centerLabel.className = 'circle-center-label absolute w-28 h-28 sm:w-32 sm:h-32 rounded-full border-2 border-dashed border-amber-300 flex flex-col items-center justify-center text-amber-800/60 text-xs font-semibold pointer-events-none bg-amber-50/40 shadow-inner z-0';
+      centerLabel.innerHTML = `<i class="fa-solid fa-users text-2xl mb-1 text-indigo-400"></i><span class="font-cute text-base">O형 배치</span>`;
+      circleWrapper.appendChild(centerLabel);
+
+      const radiusX = baseRadius;
+      const radiusY = baseRadius * 0.85; // Slight oval for better fit
+
+      desks.forEach((desk, idx) => {
+        const deskEl = createDeskElement(idx, true);
+        deskEl.style.position = 'absolute';
+        deskEl.style.left = '50%';
+        deskEl.style.top = '50%';
+        deskEl.style.margin = '-28px 0 0 -28px'; // center pivot point
+
+        const angle = (idx / totalDesks) * (2 * Math.PI) - (Math.PI / 2);
+        const x = Math.round(radiusX * Math.cos(angle));
+        const y = Math.round(radiusY * Math.sin(angle));
+
+        deskEl.style.transform = `translate(${x}px, ${y}px)`;
+        circleWrapper.appendChild(deskEl);
+      });
+
+      gridContainer.appendChild(circleWrapper);
+    }
+
+    // Render Unassigned Students Area (Bottom Zone)
+    function renderUnassignedList() {
+      unassignedContainer.innerHTML = '';
+      const unassigned = getUnassignedStudents();
+
+      const badge = document.getElementById('unassignedCountBadge');
+      if (badge) badge.innerText = `대기 ${unassigned.length}명`;
+
+      // Drag over drop target for unassigned zone
+      unassignedContainer.ondragover = handleDragOver;
+      unassignedContainer.ondragenter = (e) => {
+        e.preventDefault();
+        unassignedContainer.classList.add('border-indigo-400', 'bg-indigo-50/50');
+      };
+      unassignedContainer.ondragleave = () => {
+        unassignedContainer.classList.remove('border-indigo-400', 'bg-indigo-50/50');
+      };
+      unassignedContainer.ondrop = handleDropUnassignedZone;
+
+      if (unassigned.length === 0) {
+        unassignedContainer.innerHTML = `
+          <div class="w-full text-center py-4 text-xs font-bold text-slate-400 flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-circle-check text-emerald-500"></i>
+            <span>모든 학생이 성공적으로 책상에 배치되었습니다! ✨</span>
+          </div>
+        `;
+        return;
+      }
+
+      unassigned.forEach(sNum => {
+        const tag = document.createElement('div');
+        tag.className = 'unassigned-item px-3.5 py-2 bg-white border-2 rounded-2xl cursor-pointer flex items-center gap-1.5 shadow-2xs font-bold transition-all ' +
+          (sNum === selectedUnassignedStudent 
+            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 ring-2 ring-indigo-200' 
+            : 'border-slate-200 text-slate-700 hover:border-indigo-300 hover:bg-slate-50');
+
+        tag.draggable = true;
+        tag.ondragstart = (e) => handleDragStartUnassigned(e, sNum);
+        tag.ondragend = handleDragEnd;
+
+        // Touch drag for mobile
+        tag.addEventListener('touchstart', (e) => handleTouchStart(e, { type: 'unassigned', index: null, student: sNum }), { passive: false });
+        tag.addEventListener('touchmove', handleTouchMove, { passive: false });
+        tag.addEventListener('touchend', handleTouchEnd);
+
+        tag.onclick = () => handleUnassignedClick(sNum);
+
+        tag.innerHTML = `
+          <i class="fa-solid fa-user-graduate text-slate-400 text-xs"></i>
+          <span class="font-cute text-base">${sNum}번</span>
+        `;
+
+        unassignedContainer.appendChild(tag);
+      });
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      
+      toastMsg.innerText = message;
+      toast.classList.remove('opacity-0', 'pointer-events-none');
+      toast.classList.add('opacity-100');
+
+      setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 2200);
+    }
+  </script>
+</body>
+</html>
